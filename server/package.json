@@ -1,0 +1,30 @@
+{
+  "name": "aditya-sinha-portfolio-server",
+  "version": "1.0.0",
+  "description": "Express backend API for Aditya Sinha's portfolio and AI assistant",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test test/**/*.test.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "mongoose": "^8.10.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "supertest": "^7.0.0"
+  },
+  "keywords": [
+    "express",
+    "portfolio-api",
+    "gemini"
+  ],
+  "author": "Aditya Sinha",
+  "license": "MIT"
+}

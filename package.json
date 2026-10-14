@@ -1,0 +1,28 @@
+{
+  "name": "aditya-sinha-portfolio",
+  "version": "1.0.0",
+  "description": "Full-stack portfolio for Aditya Sinha featuring custom Three.js Jupiter shaders and an AI portfolio assistant",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,magenta\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "build:all": "npm run install:all && npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "start:unified": "SERVE_STATIC=true node server/src/server.js",
+    "test": "npm test --prefix server",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "keywords": [
+    "portfolio",
+    "react",
+    "threejs",
+    "express",
+    "gemini",
+    "full-stack"
+  ],
+  "author": "Aditya Sinha",
+  "license": "MIT"
+}
