@@ -29,106 +29,142 @@ export const JUPITER_FRAGMENT_SHADER = `
   uniform vec3 uSunDirection;
   uniform float uTime;
 
-  float sq(float x) { return x * x; }
-
-  float hash(vec3 p) {
-    p = fract(p * vec3(443.897, 441.423, 437.195));
-    p += dot(p, p.yzx + 19.19);
-    return fract((p.x + p.y) * p.z);
+  // --- Smooth Quintic Hermite Gradient Noise (C2-continuous, zero-grid artifacts) ---
+  vec3 hash3(vec3 p) {
+    p = vec3(
+      dot(p, vec3(127.1, 311.7, 74.7)),
+      dot(p, vec3(269.5, 183.3, 246.1)),
+      dot(p, vec3(113.5, 271.9, 124.6))
+    );
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
   }
 
-  float noise(vec3 p) {
+  float gradNoise(vec3 p) {
     vec3 i = floor(p);
     vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
+    // Quintic Hermite curve (C2 continuous: smooth 1st and 2nd derivatives, no grid creases)
+    vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
 
     return mix(
       mix(
-        mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
-        mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x),
-        f.y
+        mix(dot(hash3(i + vec3(0,0,0)), f - vec3(0,0,0)),
+            dot(hash3(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
+        mix(dot(hash3(i + vec3(0,1,0)), f - vec3(0,1,0)),
+            dot(hash3(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x),
+        u.y
       ),
       mix(
-        mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
-        mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x),
-        f.y
+        mix(dot(hash3(i + vec3(0,0,1)), f - vec3(0,0,1)),
+            dot(hash3(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
+        mix(dot(hash3(i + vec3(0,1,1)), f - vec3(0,1,1)),
+            dot(hash3(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x),
+        u.y
       ),
-      f.z
+      u.z
     );
   }
 
-  // 6-octave fractal Brownian motion for cloud filaments
+  // Multi-scale Fractional Brownian Motion with smooth amplitude falloff
   float fbm(vec3 p) {
     float v = 0.0;
-    float a = 0.5;
-    vec3 shift = vec3(100.0);
-    for (int i = 0; i < 6; i++) {
-      v += a * noise(p);
-      p = p * 2.05 + shift;
-      a *= 0.5;
+    float a = 0.52;
+    vec3 shift = vec3(23.41, 14.23, 31.78);
+    for (int i = 0; i < 5; i++) {
+      v += a * gradNoise(p);
+      p = p * 2.08 + shift;
+      a *= 0.46;
     }
     return v;
   }
 
-  // Ridged multifractal for violent storm eddies and festoons
-  float ridgedFbm(vec3 p) {
+  // Smooth, billowing atmospheric turbulence without harsh cusps
+  float smoothTurbulence(vec3 p) {
     float v = 0.0;
     float a = 0.5;
-    for (int i = 0; i < 5; i++) {
-      float n = noise(p);
-      n = 1.0 - abs(n * 2.0 - 1.0);
-      v += a * n * n;
-      p = p * 2.12 + vec3(31.7, 17.3, 53.1);
+    for (int i = 0; i < 4; i++) {
+      float n = gradNoise(p);
+      v += a * (1.0 - abs(n));
+      p = p * 2.04 + vec3(17.1, 31.5, 12.8);
       a *= 0.48;
     }
     return v;
   }
 
-  // Zonal palette: high-contrast cream zones against rust / burnt-orange belts
-  vec3 getJupiterBandColor(float y, float detail, float eddy) {
-    vec3 cream       = vec3(0.97, 0.90, 0.78);
-    vec3 ivory       = vec3(0.89, 0.79, 0.66);
-    vec3 slateZone   = vec3(0.72, 0.67, 0.63);
-    vec3 amber       = vec3(0.86, 0.54, 0.26);
-    vec3 burntOrange = vec3(0.78, 0.35, 0.12);
-    vec3 rust        = vec3(0.56, 0.23, 0.09);
-    vec3 darkBrown   = vec3(0.26, 0.12, 0.06);
-    vec3 polarTint   = vec3(0.34, 0.30, 0.29);
+  // --- Photorealistic NASA Juno/Cassini Atmospheric Zonal Color Profile ---
+  vec3 getJupiterBandColor(float lat, float flow1, float flow2) {
+    // Calibrated natural gas giant palette
+    vec3 cBrightWhite  = vec3(0.97, 0.94, 0.88); // High-altitude ammonia ice clouds
+    vec3 cCreamZone    = vec3(0.93, 0.88, 0.79); // Luminous ivory zones
+    vec3 cPaleTan      = vec3(0.85, 0.76, 0.65); // Warm tan intermediate bands
+    vec3 cGoldenAmber  = vec3(0.82, 0.58, 0.32); // Warm golden amber
+    vec3 cCaramelBelt  = vec3(0.74, 0.46, 0.22); // Rich caramel cloud belt
+    vec3 cBurntOrange  = vec3(0.68, 0.36, 0.16); // Deep burnt orange / terracotta
+    vec3 cMahogany     = vec3(0.48, 0.22, 0.10); // Dark mahogany (deep belt roots)
+    vec3 cDarkBrown    = vec3(0.30, 0.14, 0.07); // Dark barges & storm troughs
+    vec3 cFestoonBlue  = vec3(0.50, 0.53, 0.56); // Subtle bluish-grey equatorial festoon veils
+    vec3 cPolarHaze    = vec3(0.36, 0.38, 0.42); // High-latitude slate polar hood
 
-    float lat = y;
+    // Zonal harmonic waves: primary planetary bands
+    float w1 = sin(lat * 18.0);
+    float w2 = cos(lat * 36.0 + 0.4);
+    float w3 = sin(lat * 64.0 - 0.8);
 
-    float zoneWave1 = sin(lat * 18.0);
-    float zoneWave2 = cos(lat * 37.0 + 0.6);
-    float zoneWave3 = sin(lat * 75.0 - 1.2);
-    float microBands = sin(lat * 160.0 + detail * 6.0) * 0.17;
+    // Continuous primary band signal with gentle atmospheric harmonics
+    float bandSignal = w1 * 0.54 + w2 * 0.28 + w3 * 0.18;
 
-    float bandSignal = zoneWave1 * 0.52 + zoneWave2 * 0.28 + zoneWave3 * 0.20 + microBands;
+    // Distinct planetary belts (Gaussian-damped latitude zones)
+    // 1. Equatorial Zone (EZ): lat ~ 0.0 (wide, luminous ivory)
+    float ez = exp(-((lat) * (lat)) * 140.0);
+    
+    // 2. North Equatorial Belt (NEB): lat ~ +0.18 (broad, rich mahogany/terracotta)
+    float neb = exp(-((lat - 0.18) * (lat - 0.18)) * 110.0);
+    
+    // 3. South Equatorial Belt (SEB): lat ~ -0.22 (active caramel/burnt orange)
+    float seb = exp(-((lat + 0.22) * (lat + 0.22)) * 95.0);
+    
+    // 4. North Temperate Belt (NTB): lat ~ +0.42
+    float ntb = exp(-((lat - 0.42) * (lat - 0.42)) * 180.0);
+    
+    // 5. South Temperate Belt (STB): lat ~ -0.46
+    float stb = exp(-((lat + 0.46) * (lat + 0.46)) * 170.0);
 
-    float neb = exp(-sq((lat - 0.19) * 11.5));
-    float seb = exp(-sq((lat + 0.21) * 10.5));
-    float eqZone = exp(-sq(lat * 13.0));
-    float ntb = exp(-sq((lat - 0.44) * 16.0));
-    float stb = exp(-sq((lat + 0.46) * 15.0));
+    // 6. Tropical Zones (NTrZ / STrZ)
+    float ntrz = exp(-((lat - 0.32) * (lat - 0.32)) * 220.0);
+    float strz = exp(-((lat + 0.33) * (lat + 0.33)) * 200.0);
 
-    vec3 col = mix(ivory, cream, smoothstep(-0.4, 0.6, bandSignal));
-    col = mix(col, amber, smoothstep(-0.1, 0.45, -bandSignal + detail * 0.35));
-    col = mix(col, slateZone, smoothstep(0.2, 0.8, zoneWave2) * 0.4);
+    // Base atmospheric tone: smooth gradient between ivory zones and golden tan bands
+    vec3 col = mix(cPaleTan, cCreamZone, smoothstep(-0.35, 0.45, bandSignal));
+    col = mix(col, cGoldenAmber, smoothstep(-0.15, 0.50, -bandSignal + flow1 * 0.25));
 
-    col = mix(col, rust, neb * (0.8 + 0.2 * eddy));
-    col = mix(col, darkBrown, neb * smoothstep(0.42, 0.78, detail) * 0.78);
-    col = mix(col, burntOrange, seb * (0.85 + 0.15 * detail));
-    col = mix(col, cream, eqZone * 0.85);
+    // Deepen the North Equatorial Belt (NEB) with mahogany, caramel and dark barges
+    vec3 nebColor = mix(cBurntOrange, cMahogany, smoothstep(-0.1, 0.3, flow1));
+    nebColor = mix(nebColor, cDarkBrown, smoothstep(0.35, 0.65, flow2) * 0.45);
+    col = mix(col, nebColor, neb * 0.88);
 
-    float festoonLat = exp(-sq((lat - 0.08) * 24.0));
-    col = mix(col, vec3(0.50, 0.52, 0.55), festoonLat * smoothstep(0.52, 0.75, eddy) * 0.65);
+    // South Equatorial Belt (SEB) with rich caramel, burnt orange and turbulent wisps
+    vec3 sebColor = mix(cCaramelBelt, cBurntOrange, smoothstep(-0.2, 0.4, flow1));
+    col = mix(col, sebColor, seb * 0.85);
 
-    col = mix(col, rust, (ntb + stb) * 0.7);
+    // Equatorial Zone (EZ): luminous cream with delicate warm ivory center
+    col = mix(col, cBrightWhite, ez * 0.72);
+    // Subtle blue-grey festoons along northern/southern margins of EZ
+    float festoon = exp(-((lat - 0.08) * (lat - 0.08)) * 320.0);
+    col = mix(col, cFestoonBlue, festoon * smoothstep(0.15, 0.55, flow2) * 0.50);
 
-    col = mix(col, darkBrown, smoothstep(0.60, 0.86, eddy) * 0.5);
-    col = mix(col, cream * 1.05, smoothstep(0.64, 0.90, detail) * 0.4);
+    // Temperate belts
+    col = mix(col, cCaramelBelt, ntb * 0.75);
+    col = mix(col, cBurntOrange, stb * 0.70);
 
-    float polarMask = smoothstep(0.58, 0.96, abs(lat));
-    col = mix(col, polarTint, polarMask * 0.72);
+    // Bright tropical zones (pure ammonia ice reflections)
+    col = mix(col, cBrightWhite, (ntrz + strz) * 0.55);
+
+    // Fine organic cloud streamers (subtle, non-stippled filaments)
+    col = mix(col, cBrightWhite, smoothstep(0.40, 0.75, flow1) * 0.18);
+    col = mix(col, cDarkBrown, smoothstep(0.55, 0.85, flow2) * 0.15);
+
+    // Polar hoods: soft blue-grey / slate gradient towards poles
+    float polar = smoothstep(0.56, 0.92, abs(lat));
+    col = mix(col, cPolarHaze, polar * 0.68);
 
     return col;
   }
@@ -139,30 +175,37 @@ export const JUPITER_FRAGMENT_SHADER = `
     float lon = atan(pos.z, pos.x);
     float T = uTime;
 
-    // Differential rotation: every latitude slides at its own speed, which shears the
-    // clouds into long violent streaks. Sampling on the sphere keeps it seamless.
-    float jet = sin(lat * 26.0) * 0.55 + cos(lat * 54.0) * 0.25 + sin(lat * 9.0) * 0.35;
-    float drift = jet * T * 0.012 + jet * 0.35;
+    // Differential rotation: equatorial jets flow eastward (faster), higher latitudes flow westward
+    float jet = sin(lat * 24.0) * 0.42 + cos(lat * 48.0) * 0.20 + sin(lat * 8.0) * 0.38;
+    float drift = jet * T * 0.010 + jet * 0.30;
     float cs = cos(drift);
     float sn = sin(drift);
     vec2 xz = vec2(pos.x * cs - pos.z * sn, pos.x * sn + pos.z * cs);
-    vec3 sp = vec3(xz.x * 2.4, lat * 6.5, xz.y * 2.4);
 
-    // Multi-stage domain warp, slowly boiling over time
-    float warp1 = fbm(sp * 1.35 + vec3(12.3, 4.5, 8.1 + T * 0.010));
-    float warp2 = fbm(sp * 2.7 + vec3(warp1 * 2.2, -warp1 * 1.7, 3.3 + T * 0.014));
-    float eddy = ridgedFbm(sp * 3.2 + vec3(warp2 * 1.8, warp1 * 1.1, T * 0.020));
-    float microDetail = fbm(sp * 9.5 + vec3(eddy * 1.4));
+    // Anisotropic spatial sampling:
+    // Stretched horizontally (X and Z at 1.8, Y at 14.0) to reflect Jupiter's 8:1 zonal jet shear ratio!
+    vec3 sp = vec3(xz.x * 1.8, lat * 14.0, xz.y * 1.8);
 
-    float wavyLat = lat + (warp1 - 0.5) * 0.085 + (warp2 - 0.5) * 0.050 + (eddy - 0.5) * 0.030;
+    // Smooth 2-stage domain warp creating fluid atmospheric vortices and festoons
+    // Moderate sampling frequencies prevent high-frequency speckling or aliasing
+    float warp1 = fbm(sp * 0.95 + vec3(12.3, 4.5, 8.1 + T * 0.008));
+    float warp2 = fbm(sp * 2.10 + vec3(warp1 * 1.8, -warp1 * 1.4, 3.3 + T * 0.012));
+    float eddy = smoothTurbulence(sp * 2.60 + vec3(warp2 * 1.4, warp1 * 0.9, T * 0.016));
 
-    vec3 surfaceColor = getJupiterBandColor(wavyLat, warp2 * 0.65 + microDetail * 0.35, eddy);
+    // Wavy latitude: creates organic planetary wave ripples along the cloud band borders
+    float wavyLat = lat + warp1 * 0.040 + warp2 * 0.022 + eddy * 0.012;
+    wavyLat = clamp(wavyLat, -0.98, 0.98);
 
-    // Convective storm towers (bright) and dark barges inside the belts
-    float tower = smoothstep(0.80, 0.93, eddy) * smoothstep(0.35, 0.55, microDetail);
-    surfaceColor = mix(surfaceColor, vec3(1.0, 0.96, 0.88), tower * 0.6);
-    float barge = smoothstep(0.62, 0.80, warp1) * exp(-sq((lat - 0.19) * 8.0));
-    surfaceColor = mix(surfaceColor, vec3(0.20, 0.09, 0.05), barge * 0.6);
+    // Compute base cloud deck color
+    vec3 surfaceColor = getJupiterBandColor(wavyLat, warp2, eddy);
+
+    // Smooth convective cloud plumes (soft white puffs, not harsh dots)
+    float tower = smoothstep(0.72, 0.92, eddy) * smoothstep(0.20, 0.50, warp2);
+    surfaceColor = mix(surfaceColor, vec3(0.98, 0.96, 0.92), tower * 0.42);
+
+    // Elongated dark barges inside the North Equatorial Belt
+    float barge = smoothstep(0.55, 0.78, warp1) * exp(-((lat - 0.18) * (lat - 0.18)) * 160.0);
+    surfaceColor = mix(surfaceColor, vec3(0.26, 0.12, 0.06), barge * 0.52);
 
     // === GREAT RED SPOT ===
     float grsLatCenter = -0.38;
@@ -170,102 +213,130 @@ export const JUPITER_FRAGMENT_SHADER = `
     float dLon = atan(sin(lon - grsLonCenter), cos(lon - grsLonCenter));
     float dLat = lat - grsLatCenter;
 
-    vec2 grsCoord = vec2(dLon / 0.38, dLat / 0.145);
+    // GRS elliptical coordinate space (Jupiter's spot is ~2.5:1 ellipse)
+    vec2 grsCoord = vec2(dLon / 0.38, dLat / 0.15);
     float grsDist = length(grsCoord);
 
-    if (grsDist < 1.9) {
+    if (grsDist < 2.2) {
       float angle = atan(grsCoord.y, grsCoord.x);
-      // The anticyclone keeps turning
-      float swirl = angle + grsDist * 5.6 - pow(max(0.0, 1.3 - grsDist), 1.6) * 4.8 - T * 0.16;
-      vec3 swirlPos = vec3(cos(swirl) * grsDist * 3.5, sin(swirl) * grsDist * 3.5, grsDist * 4.0 + T * 0.02);
-      float grsNoise = fbm(swirlPos * 2.2);
-      float grsRidge = ridgedFbm(swirlPos * 3.4);
+      
+      // Smooth anticyclonic counter-clockwise vortex rotation
+      float swirl = angle + grsDist * 4.6 - pow(max(0.0, 1.25 - grsDist), 1.5) * 3.8 - T * 0.14;
+      vec3 swirlPos = vec3(cos(swirl) * grsDist * 3.2, sin(swirl) * grsDist * 3.2, grsDist * 2.8 + T * 0.015);
 
-      float collarMask = smoothstep(1.75, 1.05, grsDist) * smoothstep(0.65, 1.08, grsDist);
-      float coreMask = smoothstep(1.02, 0.15, grsDist);
-      float eyeMask = smoothstep(0.42, 0.0, grsDist);
+      float grsNoise = fbm(swirlPos * 1.8);
+      float grsEddy = smoothTurbulence(swirlPos * 2.4);
 
-      vec3 grsOuterCream = vec3(0.93, 0.84, 0.72);
-      vec3 grsTerracotta = vec3(0.80, 0.30, 0.12);
-      vec3 grsDeepRust   = vec3(0.52, 0.15, 0.06);
-      vec3 grsCoreOrange = vec3(0.90, 0.40, 0.17);
+      // Multi-layer masks for the GRS structure:
+      // Outer cradle / hollow in the surrounding SEB
+      float hollowMask = smoothstep(2.1, 1.3, grsDist);
+      // Pale outer collar ring (seen in JunoCam high-res photos)
+      float collarMask = smoothstep(1.55, 1.05, grsDist) * smoothstep(0.65, 1.10, grsDist);
+      // Deep terracotta core
+      float coreMask = smoothstep(1.10, 0.30, grsDist);
+      // Inner brick-red eye / nucleus
+      float eyeMask = smoothstep(0.40, 0.05, grsDist);
 
-      vec3 spotCol = mix(grsTerracotta, grsCoreOrange, grsNoise);
-      spotCol = mix(spotCol, grsDeepRust, grsRidge * 0.8);
-      spotCol = mix(spotCol, grsDeepRust * 0.8, eyeMask * 0.55);
+      vec3 grsHollowCream = vec3(0.95, 0.90, 0.82);
+      vec3 grsOuterCollar = vec3(0.92, 0.84, 0.72);
+      vec3 grsTerracotta  = vec3(0.82, 0.34, 0.14);
+      vec3 grsCoreOrange  = vec3(0.90, 0.44, 0.18);
+      vec3 grsDeepCrimson = vec3(0.60, 0.18, 0.07);
 
-      surfaceColor = mix(surfaceColor, grsOuterCream * (0.85 + 0.25 * grsNoise), collarMask * 0.8);
+      // Rich swirling core
+      vec3 spotCol = mix(grsTerracotta, grsCoreOrange, grsNoise * 0.7 + 0.3);
+      spotCol = mix(spotCol, grsDeepCrimson, grsEddy * 0.5);
+      spotCol = mix(spotCol, grsDeepCrimson * 0.85, eyeMask * 0.6);
+
+      // Seamlessly integrate with the surrounding atmosphere:
+      // 1. Pale GRS hollow in the SEB
+      surfaceColor = mix(surfaceColor, grsHollowCream, hollowMask * 0.45);
+      // 2. Collar ring
+      surfaceColor = mix(surfaceColor, grsOuterCollar * (0.90 + 0.20 * grsNoise), collarMask * 0.75);
+      // 3. Iconic red storm core
       surfaceColor = mix(surfaceColor, spotCol, coreMask);
     }
 
-    // Smaller storms: white ovals plus a second dark cyclone in the north
+    // Smaller storms: white oval in South Temperate Zone + dark cyclone in the north
     float ovalLat = lat + 0.68;
     float ovalLon = atan(sin(lon - 0.70), cos(lon - 0.70));
     float ovalDist = length(vec2(ovalLon / 0.11, ovalLat / 0.055));
-    if (ovalDist < 1.2) {
-      float ovalMask = smoothstep(1.1, 0.2, ovalDist);
-      surfaceColor = mix(surfaceColor, vec3(0.97, 0.92, 0.85), ovalMask * 0.88);
+    if (ovalDist < 1.3) {
+      float ovalMask = smoothstep(1.2, 0.15, ovalDist);
+      surfaceColor = mix(surfaceColor, vec3(0.97, 0.93, 0.86), ovalMask * 0.82);
     }
+
     float cycLat = lat - 0.37;
     float cycLon = atan(sin(lon + 0.95), cos(lon + 0.95));
     float cycDist = length(vec2(cycLon / 0.16, cycLat / 0.07));
     if (cycDist < 1.4) {
       float cycMask = smoothstep(1.3, 0.2, cycDist);
-      surfaceColor = mix(surfaceColor, vec3(0.30, 0.13, 0.07), cycMask * 0.7);
+      surfaceColor = mix(surfaceColor, vec3(0.28, 0.13, 0.07), cycMask * 0.65);
     }
 
-    // === CLOUD-TOP RELIEF ===
+    // === ATMOSPHERIC LIGHTING & LIMB PHOTOMETRY ===
     vec3 N = normalize(vNormal);
     vec3 V = normalize(vViewPosition);
     vec3 L = normalize(uSunDirection);
 
-    float cloudHeight = (warp2 * 0.5 + eddy * 0.35 + microDetail * 0.15);
-    vec3 perturbedN = normalize(N + vec3(dFdx(cloudHeight), dFdy(cloudHeight), 0.0) * 1.7);
-
-    // === LIGHTING ===
-    float NdotL = dot(perturbedN, L);
-    float smoothNdotL = dot(N, L);
-
-    float diffuse = smoothstep(-0.18, 0.88, NdotL);
+    float NdotL = dot(N, L);
     float NdotV = max(0.0, dot(N, V));
-    float limbDarkening = pow(NdotV, 0.22);
 
-    vec3 sunColor = vec3(1.10, 0.97, 0.85);
-    vec3 twilightTint = vec3(0.50, 0.22, 0.09);
-    float terminatorBand = smoothstep(-0.22, 0.12, smoothNdotL) * smoothstep(0.45, 0.02, smoothNdotL);
+    // Gas giant diffuse illumination:
+    // Soft, realistic multi-scattering with gentle shadow transition
+    float diffuse = smoothstep(-0.20, 0.85, NdotL);
+
+    // Subtle cloud-deck depth shading (gentle self-shadowing between high zones & deep belts)
+    // Uses smooth low-frequency flow rather than high-frequency screen derivatives!
+    float cloudShade = 0.92 + 0.08 * (warp1 * 0.6 + warp2 * 0.4);
+    diffuse *= cloudShade;
+
+    // Minnaert / Lommel-Seeliger Gas Giant Limb Darkening:
+    // Soft power curve gives thick, deep atmospheric volume
+    float limbDarkening = pow(NdotV, 0.24);
+
+    // Sunlight color: warm, crisp sunlight
+    vec3 sunColor = vec3(1.08, 0.98, 0.88);
+
+    // Terminator twilight reddening: sunlight passes through deep atmospheric path
+    vec3 twilightTint = vec3(0.55, 0.25, 0.10);
+    float terminatorBand = smoothstep(-0.20, 0.08, NdotL) * smoothstep(0.40, 0.00, NdotL);
 
     vec3 litColor = surfaceColor * sunColor * diffuse * limbDarkening;
-    litColor += surfaceColor * twilightTint * terminatorBand * 0.45;
+    litColor += surfaceColor * twilightTint * terminatorBand * 0.40;
 
-    float fresnel = pow(1.0 - NdotV, 3.4);
-    float sunwardLimb = smoothstep(-0.05, 0.75, smoothNdotL);
-    vec3 atmosphereGlow = vec3(1.0, 0.84, 0.62) * fresnel * sunwardLimb * 1.0;
+    // Atmospheric forward scattering on the sunlit limb (soft golden-ivory rim)
+    float fresnel = pow(1.0 - NdotV, 3.2);
+    float sunwardLimb = smoothstep(-0.05, 0.75, NdotL);
+    vec3 atmosphereGlow = vec3(1.0, 0.85, 0.65) * fresnel * sunwardLimb * 0.90;
 
+    // Soft specular sheen: very gentle, broad highlight (gas giant haze, not shiny plastic)
     vec3 H = normalize(L + V);
-    float spec = pow(max(0.0, dot(perturbedN, H)), 28.0) * smoothstep(0.0, 0.5, smoothNdotL);
-    litColor += vec3(1.0, 0.90, 0.75) * spec * 0.10;
+    float spec = pow(max(0.0, dot(N, H)), 18.0) * smoothstep(0.1, 0.6, NdotL);
+    litColor += vec3(0.95, 0.88, 0.78) * spec * 0.06;
 
-    // Faint ember glow on the shadow limb: the storm planet radiates heat
-    float darkSide = 1.0 - smoothstep(-0.10, 0.30, smoothNdotL);
-    vec3 ember = vec3(0.95, 0.30, 0.07) * pow(1.0 - NdotV, 2.6) * darkSide * (0.35 + 0.65 * eddy) * 0.20;
+    // Nightside / shadow hemisphere:
+    // Retain dark cinematic atmosphere with subtle internal thermal glow and night ambient
+    float darkSide = 1.0 - smoothstep(-0.10, 0.25, NdotL);
+    vec3 ember = vec3(0.92, 0.28, 0.08) * pow(1.0 - NdotV, 2.5) * darkSide * 0.14;
 
-    // Lightning inside the clouds: flashes only show where the sun doesn't reach
+    // Faint atmospheric night lightning flashes (preserved from existing shader)
     float flash = 0.0;
     for (int k = 0; k < 6; k++) {
       float fk = float(k);
       float tt = T * 0.8 + fk * 7.31;
       float id = floor(tt);
       float ph = fract(tt);
-      vec3 c = vec3(hash(vec3(id, fk, 1.7)), hash(vec3(id, fk, 5.1)), hash(vec3(id, fk, 9.3))) * 2.0 - 1.0;
+      vec3 c = vec3(hash3(vec3(id, fk, 1.7))) * 2.0 - 1.0;
       c.y *= 0.6;
       c = normalize(c);
       float d = distance(pos, c);
       float pulse = exp(-ph * 5.0) * (0.6 + 0.4 * sin(ph * 50.0));
       flash += pulse * exp(-d * d * 260.0);
     }
-    vec3 lightning = vec3(1.0, 0.80, 0.55) * flash * darkSide * 2.8 * (0.4 + 0.6 * smoothstep(0.3, 0.7, eddy));
+    vec3 lightning = vec3(1.0, 0.80, 0.55) * flash * darkSide * 2.5;
 
-    vec3 nightAmbient = surfaceColor * vec3(0.020, 0.017, 0.021);
+    vec3 nightAmbient = surfaceColor * vec3(0.022, 0.018, 0.024);
     vec3 finalColor = max(litColor + atmosphereGlow, nightAmbient) + ember + lightning;
 
     gl_FragColor = vec4(finalColor, 1.0);

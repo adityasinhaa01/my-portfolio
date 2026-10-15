@@ -78,7 +78,7 @@ export const HeroJupiterScene: FC<HeroJupiterSceneProps> = ({ prefersReducedMoti
       return;
     }
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.0));
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.innerHTML = '';
     renderer.domElement.style.display = 'block';
