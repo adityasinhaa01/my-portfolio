@@ -58,4 +58,20 @@ test('Backend Health & API Endpoints Suite', async (t) => {
     assert.equal(response.status, 400);
     assert.equal(response.body.success, false);
   });
+
+  await t.test('GET /health (root level) returns 200 with status ok', async () => {
+    const response = await request(app).get('/health');
+    assert.equal(response.status, 200);
+    assert.equal(response.body.status, 'ok');
+  });
+
+  await t.test('CORS allows requests from onrender.com hosted frontend', async () => {
+    const response = await request(app)
+      .options('/api/health')
+      .set('Origin', 'https://aditya-sinha-portfolio.onrender.com')
+      .set('Access-Control-Request-Method', 'GET');
+    
+    assert.equal(response.status, 204);
+    assert.equal(response.headers['access-control-allow-origin'], 'https://aditya-sinha-portfolio.onrender.com');
+  });
 });

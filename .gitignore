@@ -39,6 +39,3 @@ coverage/
 .vite/
 tmp/
 *.tmp
-
-# Deployment Guide
-DEPLOYMENT_GUIDE.md

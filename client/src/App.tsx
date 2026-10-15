@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { HeroJupiterScene } from './components/hero/HeroJupiterScene';
 import { NightSkyBackdrop } from './components/hero/NightSkyBackdrop';
 import { Navbar } from './components/hero/Navbar';
@@ -14,7 +14,6 @@ export default function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const scrollAnimRef = useRef<number>(0);
 
   // Check prefers-reduced-motion
   useEffect(() => {
@@ -56,42 +55,17 @@ export default function App() {
     return () => observer.disconnect();
   }, [prefersReducedMotion]);
 
-  // Cancel running scroll animation if user wheels or touches
-  useEffect(() => {
-    const cancel = () => cancelAnimationFrame(scrollAnimRef.current);
-    window.addEventListener('wheel', cancel, { passive: true });
-    window.addEventListener('touchstart', cancel, { passive: true });
-    return () => {
-      window.removeEventListener('wheel', cancel);
-      window.removeEventListener('touchstart', cancel);
-    };
-  }, []);
-
-  // Heavy cinematic smooth scroll
+  // Responsive, butter-smooth native scroll navigation
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
     const el = document.getElementById(id);
     if (!el) return;
     const targetY = el.getBoundingClientRect().top + window.scrollY;
 
-    if (prefersReducedMotion) {
-      window.scrollTo(0, targetY);
-      return;
-    }
-
-    cancelAnimationFrame(scrollAnimRef.current);
-    const startY = window.scrollY;
-    const distance = targetY - startY;
-    const duration = Math.min(2400, 1000 + Math.abs(distance) * 0.35);
-    const startTime = performance.now();
-    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-    const step = (now: number) => {
-      const t = Math.min((now - startTime) / duration, 1);
-      window.scrollTo(0, startY + distance * ease(t));
-      if (t < 1) scrollAnimRef.current = requestAnimationFrame(step);
-    };
-    scrollAnimRef.current = requestAnimationFrame(step);
+    window.scrollTo({
+      top: targetY,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth'
+    });
   };
 
   return (
