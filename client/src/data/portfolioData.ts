@@ -83,7 +83,7 @@ export const VERIFIED_PORTFOLIO_DATA: PortfolioData = {
       },
       {
         title: "Achievements & Recognition",
-        description: "Selected in Smart India Hackathon (SIH) Internal Hackathon 2025 and INSPIRE Awards – MANAK 2020–21 for innovation and problem-solving."
+        description: "Selected in Smart India Hackathon (SIH) Internal Hackathon 2025 and INSPIRE Awards – MANAK 2020–21. Achieved 95.2% in Class 12 boards and 98.6% with District Topper rank in Class 10 boards."
       }
     ]
   },
@@ -221,16 +221,16 @@ export const VERIFIED_PORTFOLIO_DATA: PortfolioData = {
     },
     {
       period: "2021–2023",
-      title: "AISSCE (Class XII)",
+      title: "Class XII (AISSCE) — 95.2% Aggregate",
       institution: "Delhi Public School, Sail Township, Ranchi, Jharkhand",
-      description: "Completed Senior Secondary Education (Class XII) with an aggregate of 95.2%.",
+      description: "Completed Senior Secondary Education (Class XII) with a top aggregate of 95.2%.",
       isPlaceholder: false
     },
     {
       period: "2016–2021",
-      title: "AISSE (Class X) & INSPIRE Awards – MANAK",
+      title: "Class X (AISSE) — 98.6% & District Topper",
       institution: "Grizzly Vidyalaya, Koderma, Jharkhand",
-      description: "Completed Secondary Education (Class X) with an aggregate of 98.6%. Selected for INSPIRE Awards – MANAK 2020–21, recognizing innovation and problem-solving skills.",
+      description: "Completed Secondary Education (Class X) with an aggregate of 98.6%, securing the District Topper rank. Selected for INSPIRE Awards – MANAK 2020–21, recognizing innovation and problem-solving skills.",
       isPlaceholder: false
     }
   ],
